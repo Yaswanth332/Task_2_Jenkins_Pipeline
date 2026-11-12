@@ -1,0 +1,64 @@
+
+services:
+
+  # Docker engine used by Jenkins
+  docker:
+    image: docker:dind
+    privileged: true
+
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+
+    volumes:
+      - docker-certs:/certs/client
+
+    networks:
+      ci:
+        aliases:
+          - docker
+
+    # Expose the deployed application's port to Windows
+    ports:
+      - "8082:8081"
+
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Jenkins automation server
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: task2-jenkins
+    restart: unless-stopped
+
+    depends_on:
+      docker:
+        condition: service_healthy
+
+    environment:
+      DOCKER_HOST: tcp://docker:2376
+      DOCKER_CERT_PATH: /certs/client
+      DOCKER_TLS_VERIFY: "1"
+
+    ports:
+      - "8090:8080"
+
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - docker-certs:/certs/client:ro
+
+    networks:
+      - ci
+
+volumes:
+  docker-certs:
+  jenkins-home:
+
+networks:
+  ci:
+    driver: bridge
